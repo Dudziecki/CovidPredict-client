@@ -9,6 +9,7 @@ module com.example.client {
     requires org.kordamp.ikonli.javafx;
     requires org.kordamp.bootstrapfx.core;
     requires eu.hansolo.tilesfx;
+    requires com.fasterxml.jackson.annotation;
 
     opens com.example.client to javafx.fxml;
     exports com.example.client;
