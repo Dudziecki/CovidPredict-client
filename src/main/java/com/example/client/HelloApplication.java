@@ -15,6 +15,8 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import javafx.animation.PauseTransition;
 
+import java.io.IOException;
+
 public class HelloApplication extends Application {
 
     private Stage primaryStage;
@@ -33,7 +35,6 @@ public class HelloApplication extends Application {
         showWelcomeScreen();
     }
 
-    // Приветственное окно с лоадером (взято из твоего кода)
     private void showWelcomeScreen() {
         Label welcomeLabel = new Label("Добро пожаловать!");
         welcomeLabel.setFont(new Font("Arial", 30));
@@ -58,11 +59,26 @@ public class HelloApplication extends Application {
         // Переход к форме авторизации через 3 секунды
         PauseTransition delay = new PauseTransition(Duration.seconds(3));
         delay.setOnFinished(event -> {
-            // Создаем клиент для взаимодействия с сервером
-            Client client = new Client("localhost", 8080);
-            // Переходим к экрану авторизации
-            LoginView loginView = new LoginView(primaryStage, client);
-            loginView.show();
+            try {
+                // Создаем клиент для взаимодействия с сервером
+                Client client = new Client("localhost", 8080);
+                // Переходим к экрану авторизации
+                LoginView loginView = new LoginView(primaryStage, client);
+                loginView.show();
+            } catch (IOException e) {
+                e.printStackTrace();
+                // Показываем сообщение об ошибке пользователю
+                Label errorLabel = new Label("Не удалось подключиться к серверу!");
+                errorLabel.setFont(new Font("Arial", 20));
+                errorLabel.setTextFill(Color.RED);
+
+                StackPane errorLayout = new StackPane(errorLabel);
+                errorLayout.setAlignment(Pos.CENTER);
+                errorLayout.setStyle("-fx-background-color: #2D2D2D;");
+
+                Scene errorScene = new Scene(errorLayout, WINDOW_WIDTH, WINDOW_HEIGHT);
+                primaryStage.setScene(errorScene);
+            }
         });
         delay.play();
     }

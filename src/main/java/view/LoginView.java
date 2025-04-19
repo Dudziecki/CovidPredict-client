@@ -11,6 +11,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import view.DashboardView;
+import view.RegisterView;
 
 public class LoginView {
     private final Stage stage;
@@ -22,49 +23,59 @@ public class LoginView {
     }
 
     public void show() {
-        GridPane loginPane = new GridPane();
-        loginPane.setHgap(15);
-        loginPane.setVgap(15);
-        loginPane.setPadding(new Insets(20));
+        // Основной контейнер с градиентом
+        VBox root = new VBox(15);
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(20));
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #2D2D2D, #1C2526);");
 
+        // Заголовок
+        Label titleLabel = new Label("Вход");
+        titleLabel.setFont(new Font("Arial", 28));
+        titleLabel.setTextFill(Color.WHITE);
+
+        // Поле логина
         Label loginLabel = new Label("Логин:");
-        loginLabel.setFont(new Font("Arial", 18));
+        loginLabel.setFont(new Font("Arial", 16));
         loginLabel.setTextFill(Color.WHITE);
-
         TextField loginField = new TextField();
-        loginField.setPrefWidth(250);
-        loginField.setStyle("-fx-background-color: #3C3C3C; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10;");
+        loginField.setPromptText("Введите логин");
+        loginField.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-prompt-text-fill: #AAAAAA; -fx-font-size: 14px;");
+        loginField.setMaxWidth(250);
 
+        // Поле пароля
         Label passwordLabel = new Label("Пароль:");
-        passwordLabel.setFont(new Font("Arial", 18));
+        passwordLabel.setFont(new Font("Arial", 16));
         passwordLabel.setTextFill(Color.WHITE);
-
         PasswordField passwordField = new PasswordField();
-        passwordField.setPrefWidth(250);
-        passwordField.setStyle("-fx-background-color: #3C3C3C; -fx-text-fill: white; -fx-background-radius: 10; -fx-padding: 10;");
+        passwordField.setPromptText("Введите пароль");
+        passwordField.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-prompt-text-fill: #AAAAAA; -fx-font-size: 14px;");
+        passwordField.setMaxWidth(250);
 
+        // Кнопка "Войти"
         Button loginButton = new Button("Войти");
-        loginButton.setFont(new Font("Arial", 16));
-        loginButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 10 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);");
-        loginButton.setOnMouseEntered(e -> loginButton.setStyle("-fx-background-color: #00A89A; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 10 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);"));
-        loginButton.setOnMouseExited(e -> loginButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 10 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);"));
+        loginButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10 20;");
+        loginButton.setPrefWidth(150);
 
-        Button registerButton = new Button("Регистрация");
-        registerButton.setFont(new Font("Arial", 16));
-        registerButton.setStyle("-fx-background-color: #555555; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 10 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);");
-        registerButton.setOnMouseEntered(e -> registerButton.setStyle("-fx-background-color: #666666; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 10 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);"));
-        registerButton.setOnMouseExited(e -> registerButton.setStyle("-fx-background-color: #555555; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 10 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);"));
+        // Кнопка "Зарегистрироваться"
+        Button registerButton = new Button("Зарегистрироваться");
+        registerButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #00C4B4; -fx-font-size: 14px; -fx-border-color: #00C4B4; -fx-border-width: 1px; -fx-padding: 5 10;");
+        registerButton.setPrefWidth(150);
 
-        loginPane.add(loginLabel, 0, 0);
-        loginPane.add(loginField, 1, 0);
-        loginPane.add(passwordLabel, 0, 1);
-        loginPane.add(passwordField, 1, 1);
-        loginPane.add(loginButton, 1, 2);
-        loginPane.add(registerButton, 1, 3);
-
+        // Обработчики событий для кнопок
         loginButton.setOnAction(e -> {
+            String login = loginField.getText().trim();
+            String password = passwordField.getText().trim();
+
+            // Проверка на пустые поля
+            if (login.isEmpty() || password.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING, "Пожалуйста, заполните все поля!");
+                alert.showAndWait();
+                return;
+            }
+
             try {
-                String data = loginField.getText() + ":" + passwordField.getText();
+                String data = login + ":" + password;
                 Response response = client.sendRequest("LOGIN", data);
                 if (response.getMessage().startsWith("SUCCESS")) {
                     String role = response.getMessage().split(":")[1];
@@ -82,19 +93,17 @@ public class LoginView {
         });
 
         registerButton.setOnAction(e -> {
-           view.RegisterView registerView = new view.RegisterView(stage, client);
+            RegisterView registerView = new RegisterView(stage, client);
             registerView.show();
         });
 
-        StackPane root = new StackPane(loginPane);
-        root.setAlignment(Pos.CENTER);
-        root.setStyle("-fx-background-color: #2D2D2D;");
+        // Добавляем элементы в контейнер
+        root.getChildren().addAll(titleLabel, loginLabel, loginField, passwordLabel, passwordField, loginButton, registerButton);
 
-        Scene loginScene = new Scene(root, 600, 600);
-        stage.setScene(loginScene);
-        stage.setTitle("Авторизация");
+        // Создаём сцену
+        Scene scene = new Scene(root, 600, 600);
+        stage.setScene(scene);
+        stage.setTitle("Вход");
         stage.show();
-
-        loginField.requestFocus();
     }
 }
