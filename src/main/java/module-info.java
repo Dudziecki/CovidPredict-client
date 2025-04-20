@@ -6,6 +6,6 @@ module com.example.client {
     opens com.example.client to javafx.fxml;
     exports com.example.client;
     exports view;
-    opens view to javafx.fxml;
+    opens view to javafx.fxml, com.fasterxml.jackson.databind;
     opens com.example.client.model to com.fasterxml.jackson.databind;
 }

@@ -20,8 +20,8 @@ import java.io.IOException;
 public class HelloApplication extends Application {
 
     private Stage primaryStage;
-    private static final double WINDOW_WIDTH = 600;
-    private static final double WINDOW_HEIGHT = 600;
+    private static final double WINDOW_WIDTH = 1000;
+    private static final double WINDOW_HEIGHT = 1000;
 
     @Override
     public void start(Stage primaryStage) {
@@ -29,7 +29,7 @@ public class HelloApplication extends Application {
 
         primaryStage.setWidth(WINDOW_WIDTH);
         primaryStage.setHeight(WINDOW_HEIGHT);
-        primaryStage.setResizable(false);
+//        primaryStage.setResizable(false);
         primaryStage.centerOnScreen();
 
         showWelcomeScreen();

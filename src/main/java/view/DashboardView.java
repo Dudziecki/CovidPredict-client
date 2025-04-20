@@ -1,101 +1,122 @@
 package view;
 
 import com.example.client.Client;
-import com.example.client.model.Response;
+import com.example.client.model.*;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
 import javafx.stage.Stage;
-import view.LoginView;
+
+import java.util.List;
 
 public class DashboardView {
     private final Stage stage;
     private final Client client;
-    private final String userRole;
+    private final String role;
+    private final BorderPane root;
 
-    public DashboardView(Stage stage, Client client, String userRole) {
+    public DashboardView(Stage stage, Client client, String role) {
         this.stage = stage;
         this.client = client;
-        this.userRole = userRole;
+        this.role = role;
+        this.root = new BorderPane();
+
+        if ("admin".equals(role)) {
+            AdminDashboardView adminDashboardView = new AdminDashboardView(stage, client);
+            return;
+        }
+
+        BorderPane root = new BorderPane();
+        TabPane tabPane = new TabPane();
+
+        Tab inputTab = new Tab("Ввод данных", createInputTabContent());
+        inputTab.setClosable(false);
+
+        Tab dataTab = new Tab("Управление данными", createAdminTabContent());
+        dataTab.setClosable(false);
+        dataTab.setDisable(!"admin".equals(role));
+
+        tabPane.getTabs().addAll(inputTab);
+
+        Button logoutButton = new Button("Выйти");
+        logoutButton.setStyle("-fx-background-color: #E74C3C; -fx-text-fill: white;");
+        logoutButton.setOnAction(e -> {
+            LoginView loginView = new LoginView(stage, client);
+            loginView.show();
+        });
+
+        HBox topBar = new HBox(10, logoutButton);
+        topBar.setPadding(new Insets(10));
+        topBar.setAlignment(Pos.CENTER_RIGHT);
+
+        root.setTop(topBar);
+        root.setCenter(tabPane);
+
+        Scene scene = new Scene(root, 800, 600);
+        stage.setScene(scene);
+        stage.setTitle("Панель управления");
+        stage.show();
+    }
+    public void show() {
+        if ("admin".equals(role)) {
+            return; // Админ уже перенаправлен в конструкторе
+        }
+        Scene scene = new Scene(root, 800, 600);
+        stage.setScene(scene);
+        stage.setTitle("Панель управления");
+        stage.show();
     }
 
-    public void show() {
-        // Основной контейнер с градиентом
-        VBox root = new VBox(15);
-        root.setAlignment(Pos.CENTER);
-        root.setPadding(new Insets(20));
-        root.setStyle("-fx-background-color: linear-gradient(to bottom, #2D2D2D, #1C2526);");
+    private VBox createInputTabContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
 
-        // Заголовок
-        Label titleLabel = new Label("Панель управления");
-        titleLabel.setFont(new Font("Arial", 28));
-        titleLabel.setTextFill(Color.WHITE);
+        Label title = new Label("Ввод данных о заражённых");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
 
-        // Информация о роли пользователя
-        Label roleLabel = new Label("Роль: " + userRole);
-        roleLabel.setFont(new Font("Arial", 16));
-        roleLabel.setTextFill(Color.LIGHTGRAY);
-
-        // Форма для ввода данных
-        Label regionLabel = new Label("Регион:");
-        regionLabel.setFont(new Font("Arial", 16));
-        regionLabel.setTextFill(Color.WHITE);
         TextField regionField = new TextField();
-        regionField.setPromptText("Введите регион");
-        regionField.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-prompt-text-fill: #AAAAAA; -fx-font-size: 14px;");
-        regionField.setMaxWidth(250);
+        regionField.setPromptText("Регион");
+        regionField.setMaxWidth(300);
 
-        Label dateLabel = new Label("Дата (гггг-мм-дд):");
-        dateLabel.setFont(new Font("Arial", 16));
-        dateLabel.setTextFill(Color.WHITE);
         TextField dateField = new TextField();
-        dateField.setPromptText("Например, 2025-04-20");
-        dateField.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-prompt-text-fill: #AAAAAA; -fx-font-size: 14px;");
-        dateField.setMaxWidth(250);
+        dateField.setPromptText("Дата (гггг-мм-дд)");
+        dateField.setMaxWidth(300);
 
-        Label infectedLabel = new Label("Количество заражённых:");
-        infectedLabel.setFont(new Font("Arial", 16));
-        infectedLabel.setTextFill(Color.WHITE);
         TextField infectedField = new TextField();
-        infectedField.setPromptText("Введите число");
-        infectedField.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-prompt-text-fill: #AAAAAA; -fx-font-size: 14px;");
-        infectedField.setMaxWidth(250);
+        infectedField.setPromptText("Количество заражённых");
+        infectedField.setMaxWidth(300);
 
-        // Кнопка "Отправить данные"
-        Button submitButton = new Button("Отправить данные");
-        submitButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10 20;");
-        submitButton.setPrefWidth(150);
+        Button submitButton = new Button("Отправить");
+        submitButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
 
-        // Кнопка "Выйти"
-        Button logoutButton = new Button("Выйти");
-        logoutButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #00C4B4; -fx-font-size: 14px; -fx-border-color: #00C4B4; -fx-border-width: 1px; -fx-padding: 5 10;");
-        logoutButton.setPrefWidth(150);
-
-        // Обработчик для кнопки "Отправить данные"
         submitButton.setOnAction(e -> {
             String region = regionField.getText().trim();
             String date = dateField.getText().trim();
             String infected = infectedField.getText().trim();
 
-            // Проверка на пустые поля
             if (region.isEmpty() || date.isEmpty() || infected.isEmpty()) {
                 Alert alert = new Alert(Alert.AlertType.WARNING, "Пожалуйста, заполните все поля!");
                 alert.showAndWait();
                 return;
             }
 
-            // Проверка формата даты (простая проверка)
             if (!date.matches("\\d{4}-\\d{2}-\\d{2}")) {
                 Alert alert = new Alert(Alert.AlertType.ERROR, "Дата должна быть в формате гггг-мм-дд!");
                 alert.showAndWait();
                 return;
             }
 
-            // Проверка, что количество заражённых — это число
+            try {
+                java.time.LocalDate.parse(date);
+            } catch (java.time.format.DateTimeParseException ex) {
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Некорректная дата! Убедитесь, что день и месяц правильные.");
+                alert.showAndWait();
+                return;
+            }
+
             if (!infected.matches("\\d+")) {
                 Alert alert = new Alert(Alert.AlertType.ERROR, "Количество заражённых должно быть числом!");
                 alert.showAndWait();
@@ -103,18 +124,17 @@ public class DashboardView {
             }
 
             try {
-                // Формируем данные для отправки: region:date:infected
-                String data = region + ":" + date + ":" + infected;
-                Response response = client.sendRequest("SUBMIT_DATA", data);
+                EpidemicData epidemicData = new EpidemicData(region, date, Integer.parseInt(infected));
+                String jsonData = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(epidemicData);
+                Response response = client.sendRequest("SUBMIT_DATA", jsonData);
                 if (response.getMessage().equals("SUCCESS")) {
                     Alert alert = new Alert(Alert.AlertType.INFORMATION, "Данные успешно отправлены!");
                     alert.showAndWait();
-                    // Очищаем поля после успешной отправки
                     regionField.clear();
                     dateField.clear();
                     infectedField.clear();
                 } else {
-                    Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка при отправке данных!");
+                    Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка при отправке данных: " + response.getMessage());
                     alert.showAndWait();
                 }
             } catch (Exception ex) {
@@ -124,26 +144,107 @@ public class DashboardView {
             }
         });
 
-        // Обработчик для кнопки "Выйти"
-        logoutButton.setOnAction(e -> {
+        content.getChildren().addAll(title, regionField, dateField, infectedField, submitButton);
+        return content;
+    }
+
+    private VBox createAdminTabContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
+
+        Label title = new Label("Управление данными");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        TableView<EpidemicData> dataTable = new TableView<>();
+        dataTable.setPrefHeight(400);
+
+        TableColumn<EpidemicData, Integer> idColumn = new TableColumn<>("ID");
+        idColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getId()).asObject());
+        idColumn.setPrefWidth(50);
+
+        TableColumn<EpidemicData, String> usernameColumn = new TableColumn<>("Пользователь");
+        usernameColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getUsername()));
+        usernameColumn.setPrefWidth(150);
+
+        TableColumn<EpidemicData, String> regionColumn = new TableColumn<>("Регион");
+        regionColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getRegion()));
+        regionColumn.setPrefWidth(150);
+
+        TableColumn<EpidemicData, String> dateColumn = new TableColumn<>("Дата");
+        dateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getDate()));
+        dateColumn.setPrefWidth(100);
+
+        TableColumn<EpidemicData, Integer> infectedColumn = new TableColumn<>("Заражённые");
+        infectedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getInfected()).asObject());
+        infectedColumn.setPrefWidth(100);
+
+        dataTable.getColumns().addAll(idColumn, usernameColumn, regionColumn, dateColumn, infectedColumn);
+
+        Button refreshButton = new Button("Обновить");
+        refreshButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
+
+        Button deleteButton = new Button("Удалить запись");
+        deleteButton.setStyle("-fx-background-color: #E74C3C; -fx-text-fill: white;");
+
+        refreshButton.setOnAction(e -> {
             try {
-                client.close();
-                LoginView loginView = new LoginView(stage, new Client("localhost", 8080));
-                loginView.show();
+                Response response = client.sendRequest("GET_ALL_DATA", "");
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String jsonData = response.getMessage().substring("SUCCESS:".length());
+                    if (jsonData.isEmpty()) {
+                        dataTable.getItems().clear();
+                        return;
+                    }
+                    List<EpidemicData> dataList = new com.fasterxml.jackson.databind.ObjectMapper()
+                            .readValue(jsonData, new com.fasterxml.jackson.core.type.TypeReference<List<EpidemicData>>(){});
+                    dataTable.getItems().clear();
+                    dataTable.getItems().addAll(dataList);
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка при получении данных: " + response.getMessage());
+                    alert.showAndWait();
+                }
             } catch (Exception ex) {
                 ex.printStackTrace();
-                Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка при выходе!");
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка связи с сервером!");
                 alert.showAndWait();
             }
         });
 
-        // Добавляем элементы в контейнер
-        root.getChildren().addAll(titleLabel, roleLabel, regionLabel, regionField, dateLabel, dateField, infectedLabel, infectedField, submitButton, logoutButton);
+        deleteButton.setOnAction(e -> {
+            EpidemicData selectedData = dataTable.getSelectionModel().getSelectedItem();
+            if (selectedData == null) {
+                Alert alert = new Alert(Alert.AlertType.WARNING, "Пожалуйста, выберите запись для удаления!");
+                alert.showAndWait();
+                return;
+            }
 
-        // Создаём сцену
-        Scene scene = new Scene(root, 600, 600);
-        stage.setScene(scene);
-        stage.setTitle("Панель управления");
-        stage.show();
+            try {
+                DeleteData deleteData = new DeleteData();
+                deleteData.setId(selectedData.getId());
+                String jsonData = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(deleteData);
+                Response response = client.sendRequest("DELETE_DATA", jsonData);
+                if (response.getMessage().equals("SUCCESS")) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION, "Запись успешно удалена!");
+                    alert.showAndWait();
+                    dataTable.getItems().remove(selectedData);
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка при удалении записи: " + response.getMessage());
+                    alert.showAndWait();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка связи с сервером!");
+                alert.showAndWait();
+            }
+        });
+
+        HBox buttonBox = new HBox(10, refreshButton, deleteButton);
+        buttonBox.setAlignment(Pos.CENTER);
+
+        content.getChildren().addAll(title, dataTable, buttonBox);
+        return content;
     }
+
+
 }
