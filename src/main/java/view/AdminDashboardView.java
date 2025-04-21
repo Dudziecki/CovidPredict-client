@@ -56,13 +56,23 @@ public class AdminDashboardView {
         Button addDataButton = createMenuButton("Добавить данные");
         addDataButton.setOnAction(e -> showAddData());
 
+        Button logsButton = createMenuButton("Просмотр логов");
+        logsButton.setOnAction(e -> showLogs());
+
         Button logoutButton = createMenuButton("Выйти");
         logoutButton.setOnAction(e -> {
-            LoginView loginView = new LoginView(stage, client);
-            loginView.show();
+            try {
+                client.close();
+                LoginView loginView = new LoginView(stage, client);
+                loginView.show();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Ошибка при выходе: " + ex.getMessage());
+                alert.showAndWait();
+            }
         });
 
-        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logoutButton);
+        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton, logoutButton);
         return menuBox;
     }
 
@@ -102,7 +112,6 @@ public class AdminDashboardView {
         Label errorLabel = new Label("");
         errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
 
-        // Начальная загрузка данных
         try {
             Response response = client.sendRequest("GET_ALL_USERS", "");
             System.out.println("Initial GET_ALL_USERS response: " + response.getMessage());
@@ -136,7 +145,7 @@ public class AdminDashboardView {
                     String jsonData = response.getMessage().substring("SUCCESS:".length());
                     if (jsonData.isEmpty()) {
                         userTable.getItems().clear();
-                        errorLabel.setText("Нет данных о пользователях.");
+                        errorLabel.setText("Нет данных о пользователей.");
                         return;
                     }
                     List<UserData> users = new com.fasterxml.jackson.databind.ObjectMapper()
@@ -378,8 +387,78 @@ public class AdminDashboardView {
         root.setCenter(content);
     }
 
-    // Внутренний класс для представления пользователей в таблице
+    private void showLogs() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
 
+        Label title = new Label("Просмотр логов");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        TableView<LogData> logTable = new TableView<>();
+        logTable.setPrefHeight(400);
+
+        TableColumn<LogData, Integer> logIdColumn = new TableColumn<>("ID лога");
+        logIdColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getLogId()).asObject());
+        logIdColumn.setPrefWidth(80);
+
+        TableColumn<LogData, Integer> userIdColumn = new TableColumn<>("ID пользователя");
+        userIdColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getUserId()).asObject());
+        userIdColumn.setPrefWidth(120);
+
+        TableColumn<LogData, String> usernameColumn = new TableColumn<>("Имя пользователя");
+        usernameColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getUsername()));
+        usernameColumn.setPrefWidth(150);
+
+        TableColumn<LogData, String> actionColumn = new TableColumn<>("Действие");
+        actionColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getAction()));
+        actionColumn.setPrefWidth(150);
+
+        TableColumn<LogData, String> timestampColumn = new TableColumn<>("Время");
+        timestampColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getFormattedTimestamp()));
+        timestampColumn.setPrefWidth(200);
+
+        logTable.getColumns().addAll(logIdColumn, userIdColumn, usernameColumn, actionColumn, timestampColumn);
+
+        Label errorLabel = new Label("");
+        errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
+
+        // Логика загрузки логов
+        Runnable loadLogs = () -> {
+            try {
+                Response response = client.sendRequest("GET_LOGS", "");
+                System.out.println("GET_LOGS response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String jsonData = response.getMessage().substring("SUCCESS:".length());
+                    if (jsonData.isEmpty()) {
+                        logTable.getItems().clear();
+                        errorLabel.setText("Нет данных о логах.");
+                        return;
+                    }
+                    List<LogData> logs = new com.fasterxml.jackson.databind.ObjectMapper()
+                            .readValue(jsonData, new com.fasterxml.jackson.core.type.TypeReference<List<LogData>>(){});
+                    logTable.getItems().clear();
+                    logTable.getItems().addAll(logs);
+                    errorLabel.setText("");
+                } else {
+                    errorLabel.setText("Ошибка при получении логов: " + response.getMessage());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+            }
+        };
+
+        // Выполняем начальную загрузку логов
+        loadLogs.run();
+
+        Button refreshButton = new Button("Обновить");
+        refreshButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
+        refreshButton.setOnAction(e -> loadLogs.run());
+
+        content.getChildren().addAll(title, logTable, refreshButton, errorLabel);
+        root.setCenter(content);
+    }
 
     public static class UserData {
         private final int userId;
@@ -413,6 +492,47 @@ public class AdminDashboardView {
 
         public String getRole() {
             return role;
+        }
+    }
+
+    public static class LogData {
+        private int logId;
+        private int userId;
+        private String username;
+        private String action;
+        private long timestamp;
+
+        public LogData() {
+        }
+
+        @JsonCreator
+        public LogData(
+                @JsonProperty("id") int logId,
+                @JsonProperty("userId") int userId,
+                @JsonProperty("username") String username,
+                @JsonProperty("action") String action,
+                @JsonProperty("timestamp") long timestamp) {
+            this.logId = logId;
+            this.userId = userId;
+            this.username = username;
+            this.action = action;
+            this.timestamp = timestamp;
+        }
+
+        public int getLogId() { return logId; }
+        public void setLogId(int logId) { this.logId = logId; }
+        public int getUserId() { return userId; }
+        public void setUserId(int userId) { this.userId = userId; }
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getAction() { return action; }
+        public void setAction(String action) { this.action = action; }
+        public long getTimestamp() { return timestamp; }
+        public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+
+        public String getFormattedTimestamp() {
+            java.time.Instant instant = java.time.Instant.ofEpochMilli(timestamp);
+            return instant.atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         }
     }
 }
