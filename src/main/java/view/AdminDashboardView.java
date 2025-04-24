@@ -4,9 +4,14 @@ import com.example.client.Client;
 import com.example.client.model.*;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.hansolo.toolbox.Statistics;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
@@ -24,7 +29,7 @@ public class AdminDashboardView {
         this.client = client;
         this.root = new BorderPane();
         this.menu = createMenu();
-
+        showStatistics();
         // Устанавливаем меню слева
         root.setLeft(menu);
         // По умолчанию показываем список всех пользователей
@@ -56,8 +61,13 @@ public class AdminDashboardView {
         Button addDataButton = createMenuButton("Добавить данные");
         addDataButton.setOnAction(e -> showAddData());
 
+        Button statsButton = createMenuButton("Статистика");
+        statsButton.setOnAction(e -> showStatistics());
+
         Button logsButton = createMenuButton("Просмотр логов");
         logsButton.setOnAction(e -> showLogs());
+
+
 
         Button logoutButton = createMenuButton("Выйти");
         logoutButton.setOnAction(e -> {
@@ -72,7 +82,7 @@ public class AdminDashboardView {
             }
         });
 
-        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton, logoutButton);
+        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton,statsButton, logoutButton);
         return menuBox;
     }
 
@@ -458,6 +468,111 @@ public class AdminDashboardView {
 
         content.getChildren().addAll(title, logTable, refreshButton, errorLabel);
         root.setCenter(content);
+    }
+    private void showStatistics() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
+
+        Label title = new Label("Статистика заболеваемости");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        // Таблица статистики
+        TableView<Statistics> statsTable = new TableView<>();
+        statsTable.setPrefHeight(200);
+
+        TableColumn<Statistics, String> regionColumn = new TableColumn<>("Регион");
+        regionColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getRegion()));
+        regionColumn.setPrefWidth(150);
+
+        TableColumn<Statistics, Double> avgInfectedColumn = new TableColumn<>("Среднее число заражённых");
+        avgInfectedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleDoubleProperty(cellData.getValue().getAvgInfected()).asObject());
+        avgInfectedColumn.setPrefWidth(200);
+
+        statsTable.getColumns().addAll(regionColumn, avgInfectedColumn);
+
+        // График заболеваемости
+        NumberAxis xAxis = new NumberAxis();
+        xAxis.setLabel("Дни");
+        NumberAxis yAxis = new NumberAxis();
+        yAxis.setLabel("Число заражённых");
+        LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);
+        lineChart.setTitle("Динамика заболеваемости");
+        lineChart.setPrefHeight(300);
+
+        Label errorLabel = new Label("");
+        errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
+
+        // Загрузка статистики
+        Runnable loadStatistics = () -> {
+            try {
+                Response response = client.sendRequest("GET_STATISTICS", "");
+                System.out.println("GET_STATISTICS response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String jsonData = response.getMessage().substring("SUCCESS:".length());
+                    if (jsonData.isEmpty() || jsonData.equals("[]")) {
+                        statsTable.getItems().clear();
+                        errorLabel.setText("Нет данных для отображения.");
+                        return;
+                    }
+                    List<Statistics> statistics = new ObjectMapper()
+                            .readValue(jsonData, new com.fasterxml.jackson.core.type.TypeReference<List<Statistics>>(){});
+                    statsTable.getItems().clear();
+                    statsTable.getItems().addAll(statistics);
+                    errorLabel.setText("");
+                } else {
+                    errorLabel.setText("Ошибка при получении статистики: " + response.getMessage());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+            }
+        };
+
+        // При клике на регион в таблице показываем график
+        statsTable.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
+            if (newSelection != null) {
+                String selectedRegion = newSelection.getRegion();
+                try {
+                    Response response = client.sendRequest("GET_EPIDEMIC_DATA", new ObjectMapper().writeValueAsString(selectedRegion));
+                    if (response.getMessage().startsWith("SUCCESS")) {
+                        String jsonData = response.getMessage().substring("SUCCESS:".length());
+                        List<EpidemicData> data = new ObjectMapper()
+                                .readValue(jsonData, new com.fasterxml.jackson.core.type.TypeReference<List<EpidemicData>>(){});
+                        XYChart.Series<Number, Number> series = new XYChart.Series<>();
+                        series.setName(selectedRegion);
+                        for (int i = 0; i < data.size(); i++) {
+                            series.getData().add(new XYChart.Data<>(i + 1, data.get(i).getInfected()));
+                        }
+                        lineChart.getData().clear();
+                        lineChart.getData().add(series);
+                    } else {
+                        errorLabel.setText("Ошибка при получении данных: " + response.getMessage());
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+                }
+            }
+        });
+
+        loadStatistics.run();
+
+        Button refreshButton = new Button("Обновить");
+        refreshButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
+        refreshButton.setOnAction(e -> loadStatistics.run());
+
+        content.getChildren().addAll(title, statsTable, lineChart, refreshButton, errorLabel);
+        root.setCenter(content);
+    }
+    public static class Statistics {
+        private String region;
+        private double avgInfected;
+
+        public String getRegion() { return region; }
+        public void setRegion(String region) { this.region = region; }
+        public double getAvgInfected() { return avgInfected; }
+        public void setAvgInfected(double avgInfected) { this.avgInfected = avgInfected; }
     }
 
     public static class UserData {
