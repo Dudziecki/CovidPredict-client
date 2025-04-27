@@ -64,6 +64,9 @@ public class AdminDashboardView {
         Button statsButton = createMenuButton("Статистика");
         statsButton.setOnAction(e -> showStatistics());
 
+        Button forecastButton = createMenuButton("Прогнозирование");
+        forecastButton.setOnAction(e -> showForecasting());
+
         Button logsButton = createMenuButton("Просмотр логов");
         logsButton.setOnAction(e -> showLogs());
 
@@ -82,7 +85,7 @@ public class AdminDashboardView {
             }
         });
 
-        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton,statsButton, logoutButton);
+        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton,statsButton,forecastButton, logoutButton);
         return menuBox;
     }
 
@@ -565,6 +568,88 @@ public class AdminDashboardView {
         content.getChildren().addAll(title, statsTable, lineChart, refreshButton, errorLabel);
         root.setCenter(content);
     }
+    private void showForecasting() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
+
+        Label title = new Label("Прогнозирование");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        TextField regionField = new TextField();
+        regionField.setPromptText("Регион");
+        regionField.setMaxWidth(300);
+
+        TextField periodField = new TextField();
+        periodField.setPromptText("Период (дни)");
+        periodField.setMaxWidth(300);
+
+        Button forecastButton = new Button("Создать прогноз");
+        forecastButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
+
+        TableView<ForecastResult> forecastTable = new TableView<>();
+        forecastTable.setPrefHeight(200);
+
+        TableColumn<ForecastResult, String> dateColumn = new TableColumn<>("Дата");
+        dateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getDate()));
+        dateColumn.setPrefWidth(150);
+
+        TableColumn<ForecastResult, Double> predictedColumn = new TableColumn<>("Прогнозируемое число заражённых");
+        predictedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleDoubleProperty(cellData.getValue().getPredictedInfected()).asObject()); // Изменили на SimpleDoubleProperty
+        predictedColumn.setPrefWidth(200);
+
+        forecastTable.getColumns().addAll(dateColumn, predictedColumn);
+
+        Label errorLabel = new Label("");
+        errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
+
+        forecastButton.setOnAction(e -> {
+            String region = regionField.getText().trim();
+            String periodStr = periodField.getText().trim();
+
+            if (region.isEmpty() || periodStr.isEmpty()) {
+                errorLabel.setText("Пожалуйста, заполните все поля!");
+                return;
+            }
+
+            int period;
+            try {
+                period = Integer.parseInt(periodStr);
+                if (period <= 0) {
+                    errorLabel.setText("Период должен быть больше 0!");
+                    return;
+                }
+            } catch (NumberFormatException ex) {
+                errorLabel.setText("Период должен быть числом!");
+                return;
+            }
+
+            try {
+                ForecastRequest forecastRequest = new ForecastRequest(region, period);
+                String jsonData = new ObjectMapper().writeValueAsString(forecastRequest);
+                System.out.println("Sending FORECAST request with data: " + jsonData);
+                Response response = client.sendRequest("FORECAST", jsonData);
+                System.out.println("FORECAST response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String forecastJson = response.getMessage().substring("SUCCESS:".length());
+                    List<ForecastResult> forecastResults = new ObjectMapper()
+                            .readValue(forecastJson, new com.fasterxml.jackson.core.type.TypeReference<List<ForecastResult>>(){});
+                    forecastTable.getItems().clear();
+                    forecastTable.getItems().addAll(forecastResults);
+                    errorLabel.setText("Прогноз успешно создан!");
+                    errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                } else {
+                    errorLabel.setText("Ошибка при создании прогноза: " + response.getMessage());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+            }
+        });
+
+        content.getChildren().addAll(title, regionField, periodField, forecastButton, forecastTable, errorLabel);
+        root.setCenter(content);
+    }
     public static class Statistics {
         private String region;
         private double avgInfected;
@@ -648,6 +733,45 @@ public class AdminDashboardView {
         public String getFormattedTimestamp() {
             java.time.Instant instant = java.time.Instant.ofEpochMilli(timestamp);
             return instant.atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        }
+    }
+
+    public static class ForecastRequest {
+        private String region;
+        private int period;
+
+        public ForecastRequest(String region, int period) {
+            this.region = region;
+            this.period = period;
+        }
+
+        public String getRegion() {
+            return region;
+        }
+
+        public int getPeriod() {
+            return period;
+        }
+    }
+
+    public static class ForecastResult {
+        private String date;
+        private double predictedInfected; // Изменили на double
+
+        @JsonCreator
+        public ForecastResult(
+                @JsonProperty("date") String date,
+                @JsonProperty("predictedInfected") double predictedInfected) {
+            this.date = date;
+            this.predictedInfected = predictedInfected;
+        }
+
+        public String getDate() {
+            return date;
+        }
+
+        public double getPredictedInfected() {
+            return predictedInfected;
         }
     }
 }
