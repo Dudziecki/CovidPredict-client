@@ -11,7 +11,6 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
-import view.RegisterView;
 
 public class LoginView {
     private final Stage stage;
@@ -74,9 +73,10 @@ public class LoginView {
                 Response response = client.sendRequest("LOGIN", jsonData);
                 System.out.println("Login response: " + response.getMessage());
                 if (response.getMessage().startsWith("SUCCESS")) {
-                    String role = response.getMessage().split(":")[1];
-                    DashboardView dashboardView = new DashboardView(stage, client, role);
-                    dashboardView.show();
+                    String[] parts = response.getMessage().split(":");
+                    String role = parts[1];
+                    String username = parts.length > 2 ? parts[2] : login; // Используем введённый логин, если username не передан
+                    new DashboardView(stage, client, role, username);
                 } else {
                     Alert alert = new Alert(Alert.AlertType.ERROR, "Неверный логин или пароль!");
                     alert.showAndWait();
