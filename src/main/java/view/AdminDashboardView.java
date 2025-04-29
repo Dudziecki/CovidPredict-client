@@ -70,6 +70,11 @@ public class AdminDashboardView {
         Button logsButton = createMenuButton("Просмотр логов");
         logsButton.setOnAction(e -> showLogs());
 
+        Button supportMessagesButton = createMenuButton("Сообщения поддержки");
+//        supportMessagesButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
+//        supportMessagesButton.setPrefWidth(200);
+        supportMessagesButton.setOnAction(e -> root.setCenter(createSupportMessagesContent()));
+
 
 
         Button logoutButton = createMenuButton("Выйти");
@@ -85,7 +90,7 @@ public class AdminDashboardView {
             }
         });
 
-        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton,statsButton,forecastButton, logoutButton);
+        menuBox.getChildren().addAll(titleLabel, allUsersButton, findUserButton, addUserButton, addDataButton, logsButton,statsButton,forecastButton, supportMessagesButton,logoutButton);
         return menuBox;
     }
 
@@ -649,6 +654,117 @@ public class AdminDashboardView {
 
         content.getChildren().addAll(title, regionField, periodField, forecastButton, forecastTable, errorLabel);
         root.setCenter(content);
+    }
+    private void loadMessages(TableView<SupportMessage> messageTable, Label errorLabel) {
+        try {
+            Response response = client.sendRequest("GET_ALL_MESSAGES", null);
+            System.out.println("GET_ALL_MESSAGES response: " + response.getMessage());
+            if (response.getMessage().startsWith("SUCCESS")) {
+                String messagesJson = response.getMessage().substring("SUCCESS:".length());
+                List<SupportMessage> messages = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readValue(messagesJson, new com.fasterxml.jackson.core.type.TypeReference<List<SupportMessage>>(){});
+                messageTable.getItems().clear();
+                messageTable.getItems().addAll(messages);
+            } else {
+                errorLabel.setText("Ошибка при загрузке сообщений: " + response.getMessage());
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+        }
+    }
+    private VBox createSupportMessagesContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
+
+        Label sectionTitle = new Label("Сообщения поддержки");
+        sectionTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        TableView<SupportMessage> messageTable = new TableView<>();
+        messageTable.setPrefHeight(300);
+
+        TableColumn<SupportMessage, String> usernameColumn = new TableColumn<>("Пользователь");
+        usernameColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getUsername()));
+        usernameColumn.setPrefWidth(100);
+
+        TableColumn<SupportMessage, String> messageColumn = new TableColumn<>("Сообщение");
+        messageColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getMessage()));
+        messageColumn.setPrefWidth(200);
+
+        TableColumn<SupportMessage, String> statusColumn = new TableColumn<>("Статус");
+        statusColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getStatus()));
+        statusColumn.setPrefWidth(100);
+
+        TableColumn<SupportMessage, String> responseColumn = new TableColumn<>("Ответ");
+        responseColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getResponse() != null ? cellData.getValue().getResponse() : "Ожидает ответа"));
+        responseColumn.setPrefWidth(200);
+
+        TableColumn<SupportMessage, String> createdAtColumn = new TableColumn<>("Отправлено");
+        createdAtColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getCreatedAt()));
+        createdAtColumn.setPrefWidth(150);
+
+        messageTable.getColumns().addAll(usernameColumn, messageColumn, statusColumn, responseColumn, createdAtColumn);
+
+        TextArea responseField = new TextArea();
+        responseField.setPromptText("Введите ответ на сообщение...");
+        responseField.setPrefRowCount(3);
+        responseField.setMaxWidth(400);
+
+        Button respondButton = new Button("Отправить ответ");
+        respondButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
+
+        Label errorLabel = new Label("");
+        errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
+
+        // Загружаем сообщения при открытии вкладки
+        loadMessages(messageTable, errorLabel);
+
+        // Обработчик для выбора сообщения
+        messageTable.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
+            if (newSelection != null) {
+                responseField.setText(newSelection.getResponse() != null ? newSelection.getResponse() : "");
+            }
+        });
+
+        // Обработчик для отправки ответа
+        respondButton.setOnAction(e -> {
+            SupportMessage selectedMessage = messageTable.getSelectionModel().getSelectedItem();
+            if (selectedMessage == null) {
+                errorLabel.setText("Пожалуйста, выберите сообщение для ответа!");
+                return;
+            }
+
+            String responseText = responseField.getText().trim();
+            if (responseText.isEmpty()) {
+                errorLabel.setText("Пожалуйста, введите текст ответа!");
+                return;
+            }
+
+            // Обновляем статус и ответ в выбранном сообщении
+            selectedMessage.setStatus("RESPONDED");
+            selectedMessage.setResponse(responseText);
+
+            try {
+                String requestData = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(selectedMessage);
+                Response response = client.sendRequest("RESPOND_MESSAGE", requestData);
+                System.out.println("RESPOND_MESSAGE response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    errorLabel.setText("Ответ успешно отправлен!");
+                    errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                    responseField.clear();
+                    loadMessages(messageTable, errorLabel); // Обновляем таблицу
+                } else {
+                    errorLabel.setText("Ошибка при отправке ответа: " + response.getMessage());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+            }
+        });
+
+        content.getChildren().addAll(sectionTitle, messageTable, responseField, respondButton, errorLabel);
+        return content;
     }
     public static class Statistics {
         private String region;
