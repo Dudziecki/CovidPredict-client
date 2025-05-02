@@ -22,10 +22,15 @@ public class LoginView {
     }
 
     public void show() {
-        VBox root = new VBox(15);
-        root.setAlignment(Pos.CENTER);
-        root.setPadding(new Insets(20));
+        // Используем StackPane для центрирования
+        StackPane root = new StackPane();
         root.setStyle("-fx-background-color: linear-gradient(to bottom, #2D2D2D, #1C2526);");
+
+        // Форма логинизации внутри VBox
+        VBox form = new VBox(15);
+        form.setAlignment(Pos.CENTER);
+        form.setPadding(new Insets(20));
+        form.setMaxWidth(300); // Ограничиваем ширину формы
 
         Label titleLabel = new Label("Вход");
         titleLabel.setFont(new Font("Arial", 28));
@@ -55,6 +60,9 @@ public class LoginView {
         registerButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #00C4B4; -fx-font-size: 14px; -fx-border-color: #00C4B4; -fx-border-width: 1px; -fx-padding: 5 10;");
         registerButton.setPrefWidth(150);
 
+        form.getChildren().addAll(titleLabel, loginLabel, loginField, passwordLabel, passwordField, loginButton, registerButton);
+        root.getChildren().add(form);
+
         loginButton.setOnAction(e -> {
             String login = loginField.getText().trim();
             String password = passwordField.getText().trim();
@@ -75,7 +83,7 @@ public class LoginView {
                 if (response.getMessage().startsWith("SUCCESS")) {
                     String[] parts = response.getMessage().split(":");
                     String role = parts[1];
-                    String username = parts.length > 2 ? parts[2] : login; // Используем введённый логин, если username не передан
+                    String username = parts.length > 2 ? parts[2] : login;
                     new DashboardView(stage, client, role, username);
                 } else {
                     Alert alert = new Alert(Alert.AlertType.ERROR, "Неверный логин или пароль!");
@@ -93,11 +101,14 @@ public class LoginView {
             registerView.show();
         });
 
-        root.getChildren().addAll(titleLabel, loginLabel, loginField, passwordLabel, passwordField, loginButton, registerButton);
-
         Scene scene = new Scene(root, 600, 600);
         stage.setScene(scene);
         stage.setTitle("Вход");
+
+        // Добавляем слушатели на изменение размера окна
+        stage.widthProperty().addListener((obs, oldVal, newVal) -> root.requestLayout());
+        stage.heightProperty().addListener((obs, oldVal, newVal) -> root.requestLayout());
+
         stage.show();
     }
 }
