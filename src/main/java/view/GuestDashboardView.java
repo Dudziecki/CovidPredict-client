@@ -2,6 +2,8 @@ package view;
 
 import com.example.client.Client;
 import com.example.client.model.*;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -11,9 +13,11 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.stage.Stage;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+
+import java.io.File;
+import java.io.FileWriter;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class GuestDashboardView {
     private final Stage stage;
@@ -51,8 +55,13 @@ public class GuestDashboardView {
         Button forecastsButton = new Button("Прогнозы");
         Button compareDataButton = new Button("Сравнение данных");
         Button supportButton = new Button("Поддержка");
+        Button rankingButton = new Button("Рейтинг регионов");
 
         Button logoutButton = new Button("Выйти");
+
+//        Tab rankingTab = new Tab("Рейтинг регионов", createRegionRankingContent());
+//        rankingTab.setClosable(false);
+//        tabPane.getTabs().add(rankingTab);
 
 
         // Стили для кнопок меню
@@ -60,22 +69,26 @@ public class GuestDashboardView {
         forecastsButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
         compareDataButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
         supportButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
+        rankingButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
         logoutButton.setStyle("-fx-background-color: #FF0000; -fx-text-fill: white;");
 
         historicalDataButton.setPrefWidth(200);
         forecastsButton.setPrefWidth(200);
         compareDataButton.setPrefWidth(200);
         supportButton.setPrefWidth(200);
+        rankingButton.setPrefWidth(200);
         logoutButton.setPrefWidth(200);
 
         // Обработчики событий для кнопок
         historicalDataButton.setOnAction(e -> root.setCenter(createHistoricalDataContent()));
-        forecastsButton.setOnAction(e -> root.setCenter(createForecastsContent()));
+        forecastsButton.setOnAction(e -> root.setCenter(createForecastContent()));
         compareDataButton.setOnAction(e -> root.setCenter(createCompareContent()));
         supportButton.setOnAction(e -> root.setCenter(createSupportContent()));
+
+        rankingButton.setOnAction(e -> root.setCenter(createRegionRankingContent()));
         logoutButton.setOnAction(e -> new LoginView(stage, client).show());
 
-        sidebar.getChildren().addAll(historicalDataButton, forecastsButton, compareDataButton, supportButton,logoutButton);
+        sidebar.getChildren().addAll(historicalDataButton, forecastsButton, compareDataButton,supportButton, rankingButton,logoutButton);
         root.setLeft(sidebar);
 
         // По умолчанию показываем "Исторические данные"
@@ -104,32 +117,32 @@ public class GuestDashboardView {
         sectionTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
 
         TextField regionField = new TextField();
-        regionField.setPromptText("Введите регион (например, Малорита)");
-        regionField.setMaxWidth(300);
+        regionField.setPromptText("Введите регион...");
+        regionField.setMaxWidth(200);
 
         Button loadButton = new Button("Загрузить данные");
         loadButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
 
+        Button exportButton = new Button("Экспорт в CSV");
+        exportButton.setStyle("-fx-background-color: #28A745; -fx-text-fill: white;");
+        exportButton.setDisable(true); // Активна только после загрузки данных
+
         TableView<EpidemicData> dataTable = new TableView<>();
-        dataTable.setPrefHeight(200);
+        dataTable.setPrefHeight(300);
 
         TableColumn<EpidemicData, String> dateColumn = new TableColumn<>("Дата");
         dateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getDate()));
         dateColumn.setPrefWidth(150);
 
-        TableColumn<EpidemicData, Number> infectedColumn = new TableColumn<>("Число заражённых");
-        infectedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleObjectProperty<Number>(cellData.getValue().getInfected()));
+        TableColumn<EpidemicData, String> regionColumn = new TableColumn<>("Регион");
+        regionColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getRegion()));
+        regionColumn.setPrefWidth(150);
+
+        TableColumn<EpidemicData, Number> infectedColumn = new TableColumn<>("Заражённых");
+        infectedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getInfected()));
         infectedColumn.setPrefWidth(150);
 
-        dataTable.getColumns().addAll(dateColumn, infectedColumn);
-
-        NumberAxis xAxis = new NumberAxis();
-        xAxis.setLabel("Дни");
-        NumberAxis yAxis = new NumberAxis();
-        yAxis.setLabel("Число заражённых");
-        LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);
-        lineChart.setTitle("Динамика заболеваемости");
-        lineChart.setPrefHeight(300);
+        dataTable.getColumns().addAll(dateColumn, regionColumn, infectedColumn);
 
         Label errorLabel = new Label("");
         errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
@@ -146,38 +159,53 @@ public class GuestDashboardView {
                 System.out.println("GET_EPIDEMIC_DATA response: " + response.getMessage());
                 if (response.getMessage().startsWith("SUCCESS")) {
                     String dataJson = response.getMessage().substring("SUCCESS:".length());
-                    List<EpidemicData> epidemicDataList = new com.fasterxml.jackson.databind.ObjectMapper()
+                    List<EpidemicData> data = new com.fasterxml.jackson.databind.ObjectMapper()
                             .readValue(dataJson, new com.fasterxml.jackson.core.type.TypeReference<List<EpidemicData>>(){});
-
                     dataTable.getItems().clear();
-                    lineChart.getData().clear();
-
-                    dataTable.getItems().addAll(epidemicDataList);
-
-                    XYChart.Series<Number, Number> series = new XYChart.Series<>();
-                    series.setName("Число заражённых");
-                    for (int i = 0; i < epidemicDataList.size(); i++) {
-                        EpidemicData data = epidemicDataList.get(i);
-                        series.getData().add(new XYChart.Data<>(i + 1, data.getInfected()));
-                    }
-                    lineChart.getData().add(series);
-
-                    errorLabel.setText("Данные успешно загружены!");
-                    errorLabel.setStyle("-fx aeruginosa: green; -fx-font-size: 14px;");
+                    dataTable.getItems().addAll(data);
+                    errorLabel.setText("Данные загружены!");
+                    errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                    exportButton.setDisable(false); // Активируем кнопку экспорта
                 } else {
                     errorLabel.setText("Ошибка при загрузке данных: " + response.getMessage());
+                    exportButton.setDisable(true);
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
                 errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+                exportButton.setDisable(true);
             }
         });
 
-        content.getChildren().addAll(sectionTitle, regionField, loadButton, dataTable, lineChart, errorLabel);
+        exportButton.setOnAction(e -> {
+            String region = regionField.getText().trim();
+            try {
+                String requestData = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .writeValueAsString(new ExportRequest("historical", region));
+                Response response = client.sendRequest("EXPORT_DATA", requestData);
+                System.out.println("EXPORT_DATA response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String csvData = response.getMessage().substring("SUCCESS:".length());
+                    File file = new File("historical_data_" + region + ".csv");
+                    try (FileWriter writer = new FileWriter(file)) {
+                        writer.write(csvData);
+                    }
+                    errorLabel.setText("Данные экспортированы в " + file.getAbsolutePath());
+                    errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                } else {
+                    errorLabel.setText("Ошибка при экспорте данных: " + response.getMessage());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка при экспорте: " + ex.getMessage());
+            }
+        });
+
+        content.getChildren().addAll(sectionTitle, regionField, loadButton, exportButton, dataTable, errorLabel);
         return content;
     }
 
-    private VBox createForecastsContent() {
+    private VBox createForecastContent() {
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
         content.setAlignment(Pos.TOP_CENTER);
@@ -185,43 +213,110 @@ public class GuestDashboardView {
         Label sectionTitle = new Label("Прогнозы");
         sectionTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
 
+        TextField regionField = new TextField();
+        regionField.setPromptText("Введите регион для фильтра...");
+        regionField.setMaxWidth(200);
+
+        Button loadButton = new Button("Загрузить прогнозы");
+        loadButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white;");
+
+        Button exportButton = new Button("Экспорт в CSV");
+        exportButton.setStyle("-fx-background-color: #28A745; -fx-text-fill: white;");
+        exportButton.setDisable(true);
+
         TableView<Forecast> forecastTable = new TableView<>();
-        forecastTable.setPrefHeight(400);
+        forecastTable.setPrefHeight(300);
 
-        TableColumn<Forecast, String> forecastDateColumn = new TableColumn<>("Дата прогноза");
-        forecastDateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getForecastDate()));
-        forecastDateColumn.setPrefWidth(150);
+        TableColumn<Forecast, String> dateColumn = new TableColumn<>("Дата прогноза");
+        dateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getForecastDate()));
+        dateColumn.setPrefWidth(150);
 
-        TableColumn<Forecast, Number> predictedCasesColumn = new TableColumn<>("Прогнозируемое число заражённых");
+        TableColumn<Forecast, Number> predictedCasesColumn = new TableColumn<>("Предсказанные случаи");
         predictedCasesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getPredictedCases()));
-        predictedCasesColumn.setPrefWidth(200);
+        predictedCasesColumn.setPrefWidth(150);
 
         TableColumn<Forecast, String> createdAtColumn = new TableColumn<>("Создано");
         createdAtColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getCreatedAt()));
         createdAtColumn.setPrefWidth(150);
 
-        forecastTable.getColumns().addAll(forecastDateColumn, predictedCasesColumn, createdAtColumn);
+        forecastTable.getColumns().addAll(dateColumn, predictedCasesColumn, createdAtColumn);
 
         Label errorLabel = new Label("");
         errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
 
-        try {
-            Response response = client.sendRequest("GET_FORECASTS", null);
-            System.out.println("GET_FORECASTS response: " + response.getMessage());
-            if (response.getMessage().startsWith("SUCCESS")) {
-                String forecastsJson = response.getMessage().substring("SUCCESS:".length());
-                List<Forecast> forecasts = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readValue(forecastsJson, new com.fasterxml.jackson.core.type.TypeReference<List<Forecast>>(){});
-                forecastTable.getItems().addAll(forecasts);
-            } else {
-                errorLabel.setText("Ошибка при загрузке прогнозов: " + response.getMessage());
+        loadButton.setOnAction(e -> {
+            try {
+                Response response = client.sendRequest("GET_FORECASTS", null);
+                System.out.println("GET_FORECASTS response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String forecastsJson = response.getMessage().substring("SUCCESS:".length());
+                    System.out.println("Received forecast JSON: " + forecastsJson); // Отладка
+                    List<Forecast> forecasts = new com.fasterxml.jackson.databind.ObjectMapper()
+                            .readValue(forecastsJson, new com.fasterxml.jackson.core.type.TypeReference<List<Forecast>>(){});
+                    System.out.println("Deserialized forecasts: " + forecasts); // Отладка
+                    String regionFilter = regionField.getText().trim().toLowerCase();
+                    System.out.println("Region filter: " + regionFilter); // Отладка
+                    forecastTable.getItems().clear();
+                    if (regionFilter.isEmpty()) {
+                        if (forecasts.isEmpty()) {
+                            errorLabel.setText("Нет прогнозов для отображения!");
+                            errorLabel.setStyle("-fx-text-fill: orange; -fx-font-size: 14px;");
+                        } else {
+                            forecastTable.getItems().addAll(forecasts);
+                            errorLabel.setText("Прогнозы загружены!");
+                            errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                        }
+                    } else {
+                        List<Forecast> filteredForecasts = forecasts.stream()
+                                .filter(f -> f.getRegionName() != null && f.getRegionName().toLowerCase().contains(regionFilter))
+                                .collect(Collectors.toList());
+                        System.out.println("Filtered forecasts: " + filteredForecasts); // Отладка
+                        if (filteredForecasts.isEmpty()) {
+                            errorLabel.setText("Нет прогнозов для региона: " + regionFilter);
+                            errorLabel.setStyle("-fx-text-fill: orange; -fx-font-size: 14px;");
+                        } else {
+                            forecastTable.getItems().addAll(filteredForecasts);
+                            errorLabel.setText("Прогнозы загружены!");
+                            errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                        }
+                    }
+                    exportButton.setDisable(false);
+                } else {
+                    errorLabel.setText("Ошибка при загрузке прогнозов: " + response.getMessage());
+                    exportButton.setDisable(true);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+                exportButton.setDisable(true);
             }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
-        }
+        });
 
-        content.getChildren().addAll(sectionTitle, forecastTable, errorLabel);
+        exportButton.setOnAction(e -> {
+            String region = regionField.getText().trim();
+            try {
+                String requestData = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .writeValueAsString(new ExportRequest("forecast", region.isEmpty() ? "all" : region));
+                Response response = client.sendRequest("EXPORT_DATA", requestData);
+                System.out.println("EXPORT_DATA response: " + response.getMessage());
+                if (response.getMessage().startsWith("SUCCESS")) {
+                    String csvData = response.getMessage().substring("SUCCESS:".length());
+                    File file = new File("forecast_data_" + (region.isEmpty() ? "all" : region) + ".csv");
+                    try (FileWriter writer = new FileWriter(file)) {
+                        writer.write(csvData);
+                    }
+                    errorLabel.setText("Прогнозы экспортированы в " + file.getAbsolutePath());
+                    errorLabel.setStyle("-fx-text-fill: green; -fx-font-size: 14px;");
+                } else {
+                    errorLabel.setText("Ошибка при экспорте прогнозов: " + response.getMessage());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorLabel.setText("Ошибка при экспорте: " + ex.getMessage());
+            }
+        });
+
+        content.getChildren().addAll(sectionTitle, regionField, loadButton, exportButton, forecastTable, errorLabel);
         return content;
     }
 
@@ -335,6 +430,10 @@ public class GuestDashboardView {
         TableView<SupportMessage> messageTable = new TableView<>();
         messageTable.setPrefHeight(300);
 
+        TableColumn<SupportMessage, String> usernameColumn = new TableColumn<>("Пользователь");
+        usernameColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getUsername()));
+        usernameColumn.setPrefWidth(100);
+
         TableColumn<SupportMessage, String> messageColumn = new TableColumn<>("Сообщение");
         messageColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getMessage()));
         messageColumn.setPrefWidth(200);
@@ -351,10 +450,29 @@ public class GuestDashboardView {
         createdAtColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getCreatedAt()));
         createdAtColumn.setPrefWidth(150);
 
-        messageTable.getColumns().addAll(messageColumn, statusColumn, responseColumn, createdAtColumn);
+        messageTable.getColumns().addAll(usernameColumn, messageColumn, statusColumn, responseColumn, createdAtColumn);
 
         Label errorLabel = new Label("");
         errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
+
+        // Проверяем количество непрочитанных сообщений
+        try {
+            Response response = client.sendRequest("GET_UNREAD_MESSAGES_COUNT", null);
+            System.out.println("GET_UNREAD_MESSAGES_COUNT response: " + response.getMessage());
+            if (response.getMessage().startsWith("SUCCESS")) {
+                int unreadCount = Integer.parseInt(response.getMessage().substring("SUCCESS:".length()));
+                if (unreadCount > 0) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Новые ответы");
+                    alert.setHeaderText(null);
+                    alert.setContentText("У вас есть " + unreadCount + " новых ответов в поддержке!");
+                    alert.showAndWait();
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+        }
 
         loadMessages(messageTable, errorLabel);
 
@@ -403,6 +521,89 @@ public class GuestDashboardView {
             ex.printStackTrace();
             errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
         }
+    }
+    private VBox createRegionRankingContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
+
+        Label sectionTitle = new Label("Рейтинг регионов");
+        sectionTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        TableView<RegionRanking> rankingTable = new TableView<>();
+        rankingTable.setPrefHeight(300);
+
+        TableColumn<RegionRanking, String> regionColumn = new TableColumn<>("Регион");
+        regionColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getRegion()));
+        regionColumn.setPrefWidth(200);
+
+        TableColumn<RegionRanking, Number> totalInfectedColumn = new TableColumn<>("Всего заражённых");
+        totalInfectedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getTotalInfected()));
+        totalInfectedColumn.setPrefWidth(150);
+
+        rankingTable.getColumns().addAll(regionColumn, totalInfectedColumn);
+
+        Label errorLabel = new Label("");
+        errorLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px;");
+
+        // Загружаем рейтинг
+        try {
+            Response response = client.sendRequest("GET_REGION_RANKING", null);
+            System.out.println("GET_REGION_RANKING response: " + response.getMessage());
+            if (response.getMessage().startsWith("SUCCESS")) {
+                String rankingsJson = response.getMessage().substring("SUCCESS:".length());
+                List<RegionRanking> rankings = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readValue(rankingsJson, new com.fasterxml.jackson.core.type.TypeReference<List<RegionRanking>>(){});
+                rankingTable.getItems().clear();
+                rankingTable.getItems().addAll(rankings);
+            } else {
+                errorLabel.setText("Ошибка при загрузке рейтинга: " + response.getMessage());
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            errorLabel.setText("Ошибка связи с сервером: " + ex.getMessage());
+        }
+
+        content.getChildren().addAll(sectionTitle, rankingTable, errorLabel);
+        return content;
+    }
+    private static class Forecast {
+        private String forecastDate;
+        private int predictedCases;
+        private String createdAt;
+        private String regionName; // Добавляем поле regionName
+
+        @JsonCreator
+        public Forecast(
+                @JsonProperty("forecastDate") String forecastDate,
+                @JsonProperty("predictedCases") int predictedCases,
+                @JsonProperty("createdAt") String createdAt,
+                @JsonProperty("regionName") String regionName) { // Добавляем regionName в конструктор
+            this.forecastDate = forecastDate;
+            this.predictedCases = predictedCases;
+            this.createdAt = createdAt;
+            this.regionName = regionName;
+        }
+
+        public String getForecastDate() { return forecastDate; }
+        public int getPredictedCases() { return predictedCases; }
+        public String getCreatedAt() { return createdAt; }
+        public String getRegionName() { return regionName; } // Добавляем геттер для regionName
+    }
+
+    private static class ExportRequest {
+        private String dataType;
+        private String region;
+
+        public ExportRequest(String dataType, String region) {
+            this.dataType = dataType;
+            this.region = region;
+        }
+
+        public String getDataType() { return dataType; }
+        public void setDataType(String dataType) { this.dataType = dataType; }
+        public String getRegion() { return region; }
+        public void setRegion(String region) { this.region = region; }
     }
 
     private static class CompareDataResponse {

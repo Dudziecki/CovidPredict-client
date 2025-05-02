@@ -5,7 +5,6 @@ import com.example.client.model.*;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.hansolo.toolbox.Statistics;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -576,7 +575,7 @@ public class AdminDashboardView {
     private void showForecasting() {
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
-        content.setAlignment(Pos.TOP_CENTER);
+        content.setAlignment(Pos.CENTER);
 
         Label title = new Label("Прогнозирование");
         title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
@@ -594,13 +593,14 @@ public class AdminDashboardView {
 
         TableView<ForecastResult> forecastTable = new TableView<>();
         forecastTable.setPrefHeight(200);
+        VBox.setVgrow(forecastTable, Priority.ALWAYS);
 
         TableColumn<ForecastResult, String> dateColumn = new TableColumn<>("Дата");
-        dateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getDate()));
+        dateColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getForecastDate()));
         dateColumn.setPrefWidth(150);
 
-        TableColumn<ForecastResult, Double> predictedColumn = new TableColumn<>("Прогнозируемое число заражённых");
-        predictedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleDoubleProperty(cellData.getValue().getPredictedInfected()).asObject()); // Изменили на SimpleDoubleProperty
+        TableColumn<ForecastResult, Number> predictedColumn = new TableColumn<>("Прогнозируемое число заражённых");
+        predictedColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(cellData.getValue().getPredictedCases()));
         predictedColumn.setPrefWidth(200);
 
         forecastTable.getColumns().addAll(dateColumn, predictedColumn);
@@ -629,16 +629,24 @@ public class AdminDashboardView {
                 return;
             }
 
+            int regionId = getRegionIdByName(region);
+            if (regionId == -1) {
+                errorLabel.setText("Регион не найден!");
+                return;
+            }
+
             try {
-                ForecastRequest forecastRequest = new ForecastRequest(region, period);
+                ForecastRequest forecastRequest = new ForecastRequest(regionId, period);
                 String jsonData = new ObjectMapper().writeValueAsString(forecastRequest);
                 System.out.println("Sending FORECAST request with data: " + jsonData);
                 Response response = client.sendRequest("FORECAST", jsonData);
                 System.out.println("FORECAST response: " + response.getMessage());
                 if (response.getMessage().startsWith("SUCCESS")) {
                     String forecastJson = response.getMessage().substring("SUCCESS:".length());
+                    System.out.println("Received forecast JSON: " + forecastJson); // Отладка
                     List<ForecastResult> forecastResults = new ObjectMapper()
                             .readValue(forecastJson, new com.fasterxml.jackson.core.type.TypeReference<List<ForecastResult>>(){});
+                    System.out.println("Deserialized forecast results: " + forecastResults); // Отладка
                     forecastTable.getItems().clear();
                     forecastTable.getItems().addAll(forecastResults);
                     errorLabel.setText("Прогноз успешно создан!");
@@ -654,6 +662,22 @@ public class AdminDashboardView {
 
         content.getChildren().addAll(title, regionField, periodField, forecastButton, forecastTable, errorLabel);
         root.setCenter(content);
+    }
+
+    // Метод для получения region_id по имени региона
+    private int getRegionIdByName(String region) {
+        try {
+            String jsonData = new ObjectMapper().writeValueAsString(region);
+            Response response = client.sendRequest("GET_REGION_ID", jsonData);
+            System.out.println("GET_REGION_ID response: " + response.getMessage());
+            if (response.getMessage().startsWith("SUCCESS")) {
+                String[] parts = response.getMessage().split(":");
+                return Integer.parseInt(parts[1]);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return -1;
     }
     private void loadMessages(TableView<SupportMessage> messageTable, Label errorLabel) {
         try {
@@ -766,6 +790,23 @@ public class AdminDashboardView {
         content.getChildren().addAll(sectionTitle, messageTable, responseField, respondButton, errorLabel);
         return content;
     }
+    public static class ForecastRequest {
+        private int regionId; // Изменяем с region (String) на regionId (int)
+        private int period;
+
+        public ForecastRequest(int regionId, int period) {
+            this.regionId = regionId;
+            this.period = period;
+        }
+
+        public int getRegionId() {
+            return regionId;
+        }
+
+        public int getPeriod() {
+            return period;
+        }
+    }
     public static class Statistics {
         private String region;
         private double avgInfected;
@@ -774,6 +815,29 @@ public class AdminDashboardView {
         public void setRegion(String region) { this.region = region; }
         public double getAvgInfected() { return avgInfected; }
         public void setAvgInfected(double avgInfected) { this.avgInfected = avgInfected; }
+    }
+    public static class ForecastResult {
+        private String forecastDate; // Соответствует "forecastDate" в JSON
+        private int predictedCases;  // Соответствует "predictedCases" в JSON
+        private String createdAt;    // Соответствует "createdAt" в JSON
+        private String regionName;   // Добавляем поле regionName
+
+        @JsonCreator
+        public ForecastResult(
+                @JsonProperty("forecastDate") String forecastDate,
+                @JsonProperty("predictedCases") int predictedCases,
+                @JsonProperty("createdAt") String createdAt,
+                @JsonProperty("regionName") String regionName) { // Добавляем regionName в конструктор
+            this.forecastDate = forecastDate;
+            this.predictedCases = predictedCases;
+            this.createdAt = createdAt;
+            this.regionName = regionName;
+        }
+
+        public String getForecastDate() { return forecastDate; }
+        public int getPredictedCases() { return predictedCases; }
+        public String getCreatedAt() { return createdAt; }
+        public String getRegionName() { return regionName; } // Добавляем геттер для regionName
     }
 
     public static class UserData {
@@ -852,42 +916,7 @@ public class AdminDashboardView {
         }
     }
 
-    public static class ForecastRequest {
-        private String region;
-        private int period;
 
-        public ForecastRequest(String region, int period) {
-            this.region = region;
-            this.period = period;
-        }
 
-        public String getRegion() {
-            return region;
-        }
 
-        public int getPeriod() {
-            return period;
-        }
-    }
-
-    public static class ForecastResult {
-        private String date;
-        private double predictedInfected; // Изменили на double
-
-        @JsonCreator
-        public ForecastResult(
-                @JsonProperty("date") String date,
-                @JsonProperty("predictedInfected") double predictedInfected) {
-            this.date = date;
-            this.predictedInfected = predictedInfected;
-        }
-
-        public String getDate() {
-            return date;
-        }
-
-        public double getPredictedInfected() {
-            return predictedInfected;
-        }
-    }
 }
