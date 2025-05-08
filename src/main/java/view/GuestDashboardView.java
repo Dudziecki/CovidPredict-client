@@ -8,10 +8,12 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.*;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 
 import java.io.File;
@@ -49,7 +51,15 @@ public class GuestDashboardView {
         // Боковое меню
         VBox sidebar = new VBox(10);
         sidebar.setPadding(new Insets(10));
-        sidebar.setStyle("-fx-background-color: #F4F4F4; -fx-border-color: #D3D3D3; -fx-border-width: 0 1 0 0;");
+        sidebar.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #D3D3D3; -fx-border-width: 0 1 0 0;");
+
+        DropShadow shadow = new DropShadow();
+        shadow.setColor(Color.rgb(0, 0, 0, 0.1)); // Полупрозрачный черный
+        shadow.setRadius(10);                     // Размытие
+        shadow.setOffsetX(-2.0);                   // Смещение влево (чтобы тень была справа)
+        shadow.setOffsetY(0.0);
+
+        sidebar.setEffect(shadow);
 
         Button historicalDataButton = new Button("Исторические данные");
         Button forecastsButton = new Button("Прогнозы");
@@ -71,6 +81,23 @@ public class GuestDashboardView {
         supportButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
         rankingButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;");
         logoutButton.setStyle("-fx-background-color: #FF0000; -fx-text-fill: white;");
+
+        historicalDataButton.setOnMouseEntered(e -> historicalDataButton.setStyle("-fx-background-color: #65B8ED; -fx-text-fill: white; -fx-font-size: 14px;"));
+        historicalDataButton.setOnMouseExited(e -> historicalDataButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;"));
+        forecastsButton.setOnMouseEntered(e -> forecastsButton.setStyle("-fx-background-color: #65B8ED; -fx-text-fill: white; -fx-font-size: 14px;"));
+        forecastsButton.setOnMouseExited(e -> forecastsButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;"));
+        compareDataButton.setOnMouseEntered(e -> compareDataButton.setStyle("-fx-background-color: #65B8ED; -fx-text-fill: white; -fx-font-size: 14px;"));
+        compareDataButton.setOnMouseExited(e -> compareDataButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;"));
+        supportButton.setOnMouseEntered(e -> supportButton.setStyle("-fx-background-color: #65B8ED; -fx-text-fill: white; -fx-font-size: 14px;"));
+        supportButton.setOnMouseExited(e -> supportButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;"));
+        rankingButton.setOnMouseEntered(e -> rankingButton.setStyle("-fx-background-color: #65B8ED; -fx-text-fill: white; -fx-font-size: 14px;"));
+        rankingButton.setOnMouseExited(e -> rankingButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-size: 14px;"));
+
+        logoutButton.setOnMouseEntered(e -> logoutButton.setStyle("-fx-background-color: #FF4040; -fx-text-fill: white;"));
+        logoutButton.setOnMouseExited(e -> logoutButton.setStyle("-fx-background-color: #FF0000; -fx-text-fill: white;"));
+
+
+
 
         historicalDataButton.setPrefWidth(200);
         forecastsButton.setPrefWidth(200);

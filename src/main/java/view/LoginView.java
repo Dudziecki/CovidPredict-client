@@ -42,6 +42,7 @@ public class LoginView {
         TextField loginField = new TextField();
         loginField.setPromptText("Введите логин");
         loginField.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-prompt-text-fill: #AAAAAA; -fx-font-size: 14px;");
+
         loginField.setMaxWidth(250);
 
         Label passwordLabel = new Label("Пароль:");
@@ -55,10 +56,14 @@ public class LoginView {
         Button loginButton = new Button("Войти");
         loginButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10 20;");
         loginButton.setPrefWidth(150);
+        loginButton.setOnMouseEntered(e -> loginButton.setStyle("-fx-background-color: #38E2D5; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10 20;"));
+        loginButton.setOnMouseExited(e -> loginButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10 20;"));
 
         Button registerButton = new Button("Зарегистрироваться");
         registerButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #00C4B4; -fx-font-size: 14px; -fx-border-color: #00C4B4; -fx-border-width: 1px; -fx-padding: 5 10;");
         registerButton.setPrefWidth(150);
+        registerButton.setOnMouseEntered(e -> registerButton.setStyle("-fx-background-color: #00C4B4; -fx-text-fill: white; -fx-font-size: 14px;-fx-border-color: #00C4B4; -fx-border-width: 1px; -fx-padding: 5 10;"));
+        registerButton.setOnMouseExited(e -> registerButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #00C4B4; -fx-font-size: 14px; -fx-border-color: #00C4B4; -fx-border-width: 1px; -fx-padding: 5 10;"));
 
         form.getChildren().addAll(titleLabel, loginLabel, loginField, passwordLabel, passwordField, loginButton, registerButton);
         root.getChildren().add(form);
